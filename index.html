@@ -1,121 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BK Market Analysis Tool</title>
-<style>
-  body {
-    margin: 0;
-    font-family: 'Courier New', monospace;
-    background-color: #0b0f1a;
-    color: #00ffcc;
-  }
-  .center-screen {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-  }
-  button {
-    background-color: #00ffcc;
-    color: #0b0f1a;
-    padding: 12px 24px;
-    border: none;
-    border-radius: 5px;
-    font-size: 1.2em;
-    cursor: pointer;
-  }
-  button:hover {
-    background-color: #00ddb0;
-  }
-  #tool-container {
-    display: none;
-    padding: 20px;
-  }
-  .log {
-    background: #101820;
-    padding: 10px;
-    height: 200px;
-    overflow-y: auto;
-    border-radius: 5px;
-    font-size: 0.9em;
-    margin-top: 20px;
-  }
-</style>
+    <meta charset="UTF-8">
+    <title>BK Market Analyzer</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            background-color: #0d1b2a;
+            color: #00ff99;
+        }
+        .center-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            text-align: center;
+        }
+        .btn {
+            background: #003049;
+            color: #00ff99;
+            border: 2px solid #00ff99;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin: 10px;
+        }
+        .btn:hover {
+            background: #00ff99;
+            color: #003049;
+        }
+        .hidden {
+            display: none;
+        }
+        #log {
+            white-space: pre-wrap;
+            background: #001219;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #00ff99;
+        }
+    </style>
 </head>
 <body>
-
-<!-- Welcome Screen -->
-<div id="welcome-screen" class="center-screen">
-  <h1>Welcome to BK Market Analysis</h1>
-  <p>Connect to Deriv to start market analysis.</p>
-  <button id="connect-btn">Connect to Deriv</button>
+<div id="welcome" class="center-screen">
+    <h1 id="welcomeText"></h1>
+    <button id="connectBtn" class="btn">Connect to Deriv</button>
 </div>
 
-<!-- Tool Screen -->
-<div id="tool-container">
-  <h2>Market Analysis Running...</h2>
-  <div class="log" id="log"></div>
+<div id="tool" class="hidden">
+    <div style="padding: 20px;">
+        <h2>Market Analysis Tool</h2>
+        <button id="autoRunBtn" class="btn">Auto-Run All Markets</button>
+        <select id="marketSelect" class="btn"></select>
+        <button id="specifyBtn" class="btn">Analyze Selected Market</button>
+        <div id="log"></div>
+    </div>
 </div>
 
 <script>
-  const APP_ID = 95137;
-  const REDIRECT_URI = window.location.origin + window.location.pathname.replace('index.html','') + 'redirect.html';
-  const TRUSTED_PARENT = 'YOUR_GITHUB_PAGES_URL'; // e.g., 'https://username.github.io'
+const APP_ID = 95137;
+const TRUSTED_PARENT = 'https://brian61957.github.io';
+const connectBtn = document.getElementById('connectBtn');
+const welcomeText = document.getElementById('welcomeText');
+const welcomeDiv = document.getElementById('welcome');
+const toolDiv = document.getElementById('tool');
+const logDiv = document.getElementById('log');
+const marketSelect = document.getElementById('marketSelect');
+const autoRunBtn = document.getElementById('autoRunBtn');
+const specifyBtn = document.getElementById('specifyBtn');
 
-  document.getElementById('connect-btn').addEventListener('click', () => {
-    window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-  });
+// Typing effect
+const message = "Welcome to BK Market Analyzer...";
+let idx = 0;
+function typeText() {
+    if (idx < message.length) {
+        welcomeText.textContent += message.charAt(idx);
+        idx++;
+        setTimeout(typeText, 50);
+    }
+}
+typeText();
 
-  // If token exists in sessionStorage, start tool
-  const token = sessionStorage.getItem('deriv_access_token');
-  if (token) {
-    document.getElementById('welcome-screen').style.display = 'none';
-    document.getElementById('tool-container').style.display = 'block';
-    startAnalysis(token);
-  }
+// OAuth connect
+connectBtn.addEventListener('click', () => {
+    const redirectUri = `${window.location.origin}${window.location.pathname.replace(/index\.html$/, '')}redirect.html`;
+    const loginUrl = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.location.href = loginUrl;
+});
 
-  function startAnalysis(token) {
-    const logEl = document.getElementById('log');
-    const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+// Load tool if token exists
+const token = sessionStorage.getItem('deriv_access_token');
+if (token) {
+    welcomeDiv.classList.add('hidden');
+    toolDiv.classList.remove('hidden');
+    initTool(token);
+}
+
+function initTool(token) {
+    const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=' + APP_ID);
 
     ws.onopen = () => {
-      log('Connected to Deriv API');
-      ws.send(JSON.stringify({ authorize: token }));
+        ws.send(JSON.stringify({ authorize: token }));
     };
 
     ws.onmessage = (msg) => {
-      const data = JSON.parse(msg.data);
-      if (data.msg_type === 'authorize') {
-        log(`Authorized as: ${data.authorize.loginid}`);
-        // Example: subscribe to a market
-        ws.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
-      }
-      if (data.msg_type === 'tick') {
-        log(`Tick: ${data.tick.symbol} ${data.tick.quote}`);
-        // Here would be your strategy logic...
-        sendSignalToParent({symbol: data.tick.symbol, price: data.tick.quote});
-      }
+        const data = JSON.parse(msg.data);
+        if (data.msg_type === 'authorize') {
+            log("Authorized as " + data.authorize.loginid);
+            fetchMarkets(ws);
+        }
+        if (data.msg_type === 'active_symbols') {
+            populateMarkets(data.active_symbols);
+        }
+        if (data.msg_type === 'tick') {
+            log(`Tick: ${data.tick.symbol} - ${data.tick.quote}`);
+        }
     };
 
-    ws.onerror = (err) => log('WebSocket error: ' + err.message);
-    ws.onclose = () => log('WebSocket closed');
+    autoRunBtn.onclick = () => {
+        log("Auto-running analysis for all markets...");
+        fetchMarkets(ws, true);
+    };
 
-    function log(msg) {
-      logEl.innerHTML += msg + '<br>';
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+    specifyBtn.onclick = () => {
+        const symbol = marketSelect.value;
+        log("Analyzing: " + symbol);
+        ws.send(JSON.stringify({ ticks: symbol }));
+    };
+}
 
-    function sendSignalToParent(payload) {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'BK_SIGNAL', payload }, TRUSTED_PARENT);
-      }
+function fetchMarkets(ws, autoRun = false) {
+    ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic' }));
+    if (autoRun) {
+        setTimeout(() => {
+            const opts = marketSelect.options;
+            for (let i = 0; i < opts.length; i++) {
+                ws.send(JSON.stringify({ ticks: opts[i].value }));
+            }
+        }, 2000);
     }
-  }
+}
+
+function populateMarkets(symbols) {
+    marketSelect.innerHTML = '';
+    symbols.forEach(sym => {
+        const opt = document.createElement('option');
+        opt.value = sym.symbol;
+        opt.textContent = `${sym.display_name} (${sym.symbol})`;
+        marketSelect.appendChild(opt);
+    });
+}
+
+function log(message) {
+    logDiv.textContent += message + '\n';
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
 </script>
-
 </body>
 </html>

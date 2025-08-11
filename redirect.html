@@ -1,41 +1,54 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Redirecting...</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      background-color: #0b0f1a;
-      color: #fff;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Connecting to Deriv...</title>
+    <style>
+        body {
+            background-color: #0d1b2a;
+            color: #00ff99;
+            font-family: monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 1.2rem;
+        }
+    </style>
 </head>
 <body>
-  <h2>Connecting to Deriv...</h2>
-  <script>
-    (function() {
-      // Parse access_token from hash fragment (#access_token=...)
-      const hash = window.location.hash.substring(1);
-      const params = new URLSearchParams(hash);
-      const token = params.get('access_token');
+    Connecting to Deriv<span id="dots">...</span>
 
-      if (token) {
-        // Store token in sessionStorage (not localStorage)
-        sessionStorage.setItem('deriv_access_token', token);
-      }
+    <script>
+        const TRUSTED_PARENT = 'https://brian61957.github.io';
 
-      // Clean the URL
-      window.history.replaceState({}, document.title, window.location.pathname);
+        // Animate dots
+        let dotCount = 0;
+        setInterval(() => {
+            dotCount = (dotCount + 1) % 4;
+            document.getElementById('dots').textContent = '.'.repeat(dotCount);
+        }, 400);
 
-      // Redirect back to index.html
-      window.location.href = 'index.html';
-    })();
-  </script>
+        // Get token from hash or query
+        const urlParams = new URLSearchParams(window.location.search);
+        let token = urlParams.get('token1');
+        if (!token && window.location.hash) {
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            token = hashParams.get('access_token');
+        }
+
+        if (token) {
+            // Store in sessionStorage only
+            sessionStorage.setItem('deriv_access_token', token);
+
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // Redirect to main tool
+            window.location.href = 'index.html';
+        } else {
+            document.body.textContent = 'No token found. Please reconnect.';
+        }
+    </script>
 </body>
 </html>
